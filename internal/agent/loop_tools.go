@@ -114,6 +114,7 @@ func (l *Loop) processToolResult(
 		Role:       "tool",
 		Content:    result.ForLLM,
 		ToolCallID: tc.ID,
+		ToolName:   tc.Name,
 		IsError:    result.IsError,
 	}
 

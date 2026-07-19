@@ -155,6 +155,7 @@ func (s *ToolStage) preflightToolCall(ctx context.Context, state *RunState, tc p
 				Role:       "tool",
 				Content:    reason,
 				ToolCallID: tc.ID,
+				ToolName:   tc.Name,
 				IsError:    true,
 			}
 		}
@@ -173,6 +174,7 @@ func (s *ToolStage) preflightToolCall(ctx context.Context, state *RunState, tc p
 			Role:       "tool",
 			Content:    "Hook blocked: pre_tool_use",
 			ToolCallID: tc.ID,
+			ToolName:   tc.Name,
 		}
 	}
 	if r.UpdatedToolInput != nil {

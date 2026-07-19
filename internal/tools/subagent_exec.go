@@ -322,6 +322,7 @@ func (sm *SubagentManager) executeTask(ctx context.Context, task *SubagentTask) 
 				Role:       "tool",
 				Content:    result.ForLLM,
 				ToolCallID: tc.ID,
+				ToolName:   tc.Name,
 			})
 		}
 	}
