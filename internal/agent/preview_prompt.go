@@ -153,7 +153,14 @@ func BuildPreviewPrompt(ctx context.Context, ag *store.AgentData, mode PromptMod
 	if deps.SkillsLoader != nil {
 		var skillAllowList []string
 		if deps.SkillAccessStore != nil {
-			if accessible, err := deps.SkillAccessStore.ListAccessible(ctx, ag.ID, userID); err == nil {
+			// Scope skill visibility to the AGENT's tenant, not the raw ctx tenant
+			// (which may be master scope for the previewing session). Mirror the
+			// runtime path in resolver.go so preview matches what the agent sees.
+			skillCtx := ctx
+			if ag.TenantID != uuid.Nil {
+				skillCtx = store.WithTenantID(ctx, ag.TenantID)
+			}
+			if accessible, err := deps.SkillAccessStore.ListAccessible(skillCtx, ag.ID, userID); err == nil {
 				skillAllowList = make([]string, 0, len(accessible))
 				for _, sk := range accessible {
 					skillAllowList = append(skillAllowList, sk.Slug)
