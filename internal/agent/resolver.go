@@ -433,12 +433,7 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 				for _, sk := range accessible {
 					skillAllowList = append(skillAllowList, sk.Slug)
 				}
-				// TEMP DIAG (skill-visibility-tenant-scope): prove which tenant the
-				// query used and how many skills came back. Remove after verifying.
-				slog.Info("skill visibility filter DIAG", "agent", agentKey,
-					"ag_tenant", ag.TenantID.String(),
-					"scope_tenant", store.TenantIDFromContext(skillCtx).String(),
-					"accessible", len(skillAllowList))
+				slog.Debug("skill visibility filter", "agent", agentKey, "accessible", len(skillAllowList))
 			} else {
 				slog.Warn("failed to load accessible skills, falling back to all", "agent", agentKey, "error", err)
 				// nil = fallback to all (better than blocking all skills)
