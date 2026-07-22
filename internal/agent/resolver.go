@@ -415,9 +415,20 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 
 		// Filter skills by visibility + agent grants.
 		// Only public skills and explicitly granted internal skills appear in the system prompt.
+		//
+		// Scope skill visibility to the AGENT's tenant, not the raw session ctx
+		// tenant. A session may run under master scope (e.g. owner console) while
+		// the agent and its granted skills live in a sub-tenant; ListAccessible
+		// tenant-filters internal skills by the ctx scope, so passing the raw ctx
+		// would drop the agent's own internal skills and leave only master
+		// is_system skills. Mirror the allowed_paths re-scope above.
 		var skillAllowList []string
 		if deps.SkillAccessStore != nil {
-			if accessible, err := deps.SkillAccessStore.ListAccessible(ctx, ag.ID, ""); err == nil {
+			skillCtx := ctx
+			if ag.TenantID != uuid.Nil {
+				skillCtx = store.WithTenantID(ctx, ag.TenantID)
+			}
+			if accessible, err := deps.SkillAccessStore.ListAccessible(skillCtx, ag.ID, ""); err == nil {
 				skillAllowList = make([]string, 0, len(accessible))
 				for _, sk := range accessible {
 					skillAllowList = append(skillAllowList, sk.Slug)
