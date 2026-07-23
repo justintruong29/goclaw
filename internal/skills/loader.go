@@ -219,14 +219,10 @@ func (l *Loader) listManagedSkills() []Info {
 		}
 		slug := d.Name()
 
-		// Find the latest version subdirectory (versioned layout: <slug>/<N>/SKILL.md).
+		// Find the latest version subdirectory
 		latestVersion, latestDir := l.findLatestVersion(slug)
 		if latestVersion < 0 {
-			// Fallback: flat layout with SKILL.md directly under the slug dir
-			// (<slug>/SKILL.md). Some skills are published/synced without a
-			// numbered version subdir; without this they'd be silently dropped
-			// from the loader even though they're granted/accessible in the DB.
-			latestDir = filepath.Join(l.managedSkillsDir, slug)
+			continue
 		}
 
 		skillFile := filepath.Join(latestDir, "SKILL.md")
