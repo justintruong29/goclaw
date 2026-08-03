@@ -35,7 +35,7 @@ upstream/dev ──fast-forward──▶ origin/dev        (bản sao thuần, C
 |---|---|---|---|
 | `dev` | Bản sao thuần của `upstream/dev` | không ai commit tay | `git push origin upstream/dev:dev` (chỉ fast-forward) |
 | `release` | Nhánh triển khai = `dev` + patch nội bộ | chỉ qua PR + 1 review | `git merge origin/dev` |
-| `feat/*`, `fix/*` | Việc mới, cắt từ `dev` | người tạo nhánh | rebase thoải mái (nhánh riêng) |
+| `feat/*`, `fix/*` | Việc mới, cắt từ `dev` | người tạo nhánh | rebase thoải mái (nhánh riêng); giữ lại chừng nào PR upstream còn mở |
 | `hotfix/*` | Vá gấp production, cắt từ `release` | người tạo nhánh | PR vào `release` |
 | `main` | Bản sao `upstream/main`, không dùng | không ai | để nguyên |
 
@@ -296,6 +296,17 @@ Yêu cầu của upstream cần chú ý khi mở PR (trích `CONTRIBUTING.md` up
 
 PR ngược upstream và việc deploy nội bộ là **hai việc độc lập** — không chờ nhau.
 
+### Cảnh báo: đừng xoá nhánh khi nó còn là head của PR upstream
+
+PR gửi lên upstream trỏ vào nhánh nằm trên fork. Khi merge PR nội bộ vào `release`, nếu tiện tay xoá nhánh thì **PR trên upstream tự động bị đóng**:
+
+```bash
+gh pr merge <n> --merge --delete-branch    # SAI khi nhánh đang có PR upstream
+gh pr merge <n> --merge                    # đúng: giữ nhánh lại
+```
+
+Chỉ xoá nhánh sau khi upstream đã merge hoặc đã từ chối PR. Lỡ xoá rồi thì cứu được: đẩy lại nhánh đúng commit cũ rồi `gh pr reopen <n> --repo nextlevelbuilder/goclaw` — nội dung PR và bình luận vẫn còn nguyên.
+
 ---
 
 ## 10. GitHub Actions trên fork
@@ -431,5 +442,6 @@ git branch fix/abc && git reset --hard origin/release && git checkout fix/abc
 | 2026-08-03 | Triển khai bằng ảnh GHCR dựng từ `release`, VPS chỉ `docker pull` | thứ chạy đúng bằng thứ CI đã test; quay lui bằng đổi tag ảnh |
 | 2026-08-03 | Tag `fork-v<tag-upstream-dev>-<YYYYMMDD>` | tách khỏi họ tag `v*-beta.NNN` của upstream; nhìn tag biết ngay nền upstream và ngày |
 | 2026-08-03 | Bắt buộc PR + CI xanh vào `release`; PR ngược upstream mọi fix dùng chung | tạo dấu vết review (fork trước đó chưa có PR nào) và giữ delta riêng tiến về 0 |
+| 2026-08-03 | Giữ riêng fix skill-visibility tenant scope, **không** PR lên upstream | hai commit không kèm test, mà upstream bắt buộc test cho thay đổi tenant isolation. Cái giá: patch nằm ở `internal/agent/resolver.go` và `preview_prompt.go` — hai file nóng của vòng lặp agent — nên đây là điểm dễ conflict nhất mỗi lần sync, và người giải conflict phải hiểu ý đồ patch mới giải đúng. Muốn hết gánh này thì viết test rồi gửi PR |
 | 2026-08-03 | Hạ số approve bắt buộc từ 1 xuống **0**, giữ nguyên yêu cầu CI xanh | team 2 người và GitHub không cho tác giả tự approve PR của mình, nên yêu cầu 1 approve khiến chủ repo bị khoá cứng mỗi khi người kia bận. Đổi lại: máy không còn chặn code chưa ai xem — review trở thành thoả thuận giữa người với nhau, không phải rào chắn kỹ thuật |
 | 2026-08-03 | File riêng của fork luôn mang tên `fork-*` | tránh conflict với upstream ở mỗi lần sync |
