@@ -1,0 +1,4 @@
+# .bat phai la CRLF: cmd.exe co the vo o goto/label khi file chi co LF.
+# Dat rule o day thay vi sua .gitattributes goc de khong dung file cua upstream.
+*.bat text eol=crlf
+*.sh  text eol=lf
