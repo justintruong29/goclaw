@@ -66,6 +66,13 @@ git fetch upstream --tags
 git remote -v
 ```
 
+Rồi cài bộ script (xem mục 12 để biết vì sao phải cài ra ngoài repo):
+
+```bat
+git checkout release
+scripts\fork\install.bat
+```
+
 Kết quả mong muốn:
 
 ```text
@@ -322,19 +329,38 @@ Fork kế thừa toàn bộ workflow của upstream. Một số cái phải tắ
 
 ## 12. Script có sẵn
 
-Các lệnh hay dùng đã đóng gói trong `scripts/fork/` (Windows dùng `.bat`, VPS dùng `.sh`):
+### Cài một lần (bắt buộc, không phải tuỳ chọn)
+
+```bat
+cd <thư-mục-repo>
+scripts\fork\install.bat
+```
+
+Lệnh này chép bộ `.bat` ra `..\goclaw-tools` (cạnh repo) và ghi lại đường dẫn repo để script tự tìm. Thêm vào PATH cho gọn:
+
+```bat
+setx PATH "%PATH%;D:\goclaw-core\goclaw-tools"
+```
+
+**Vì sao phải cài ra ngoài repo:** nhánh feature cắt từ `dev`, mà `dev` là bản sao thuần của upstream nên **không bao giờ chứa `scripts/fork/`**. Chạy script từ trong repo thì lệnh `git checkout` sẽ xoá đúng file `.bat` đang chạy giữa chừng và cmd đứt ngang; tệ hơn, khi đang ở nhánh feature thì trong repo không có script nào cả, kể cả `check.bat`. Bản cài ở ngoài thì đổi nhánh kiểu gì cũng còn. `new.bat` tự chặn nếu phát hiện đang chạy bản nằm trong repo.
+
+Chạy lại `install.bat` sau mỗi lần script được cập nhật trên `release`.
+
+### Danh sách
 
 | Script | Việc | Thay cho |
 |---|---|---|
-| `scripts\fork\sync.bat` | Đồng bộ upstream: fetch → mirror `dev` → merge vào `release` | mục 6 |
-| `scripts\fork\new.bat <loại>/<mô-tả>` | Tạo nhánh việc mới trên nền `origin/dev` | mục 5 |
-| `scripts\fork\hotfix.bat <mô-tả>` | Tạo nhánh vá gấp trên nền `origin/release` | mục 7 |
-| `scripts\fork\check.bat [web]` | Chạy đủ bộ kiểm tra trước khi mở PR | mục 5 |
-| `scripts\fork\release.bat` | Tự tính tag `fork-v...-<ngày>` rồi tạo và đẩy | mục 8 |
-| `scripts\fork\delta.bat` | Xem patch riêng của fork + kiểm tra `dev` có lệch upstream không | mục 6 |
-| `scripts/fork/deploy.sh` | Pull ảnh và triển khai trên VPS (cũng dùng để quay lui) | mục 8 |
+| `sync.bat` | Đồng bộ upstream: fetch → mirror `dev` → merge vào `release` | mục 6 |
+| `new.bat <loại>/<mô-tả>` | Tạo nhánh việc mới trên nền `origin/dev` | mục 5 |
+| `hotfix.bat <mô-tả>` | Tạo nhánh vá gấp trên nền `origin/release` | mục 7 |
+| `check.bat [web]` | Chạy đủ bộ kiểm tra trước khi mở PR | mục 5 |
+| `release.bat` | Tự tính tag `fork-v...-<ngày>` rồi tạo và đẩy | mục 8 |
+| `delta.bat` | Xem patch riêng của fork + kiểm tra `dev` có lệch upstream không | mục 6 |
+| `scripts/fork/deploy.sh` | Pull ảnh và triển khai trên VPS, cũng dùng để quay lui | mục 8 |
 
-Các script đều tự chặn thao tác sai: `sync.bat` từ chối chạy khi cây làm việc bẩn và báo rõ phải làm gì nếu push `dev` không fast-forward; `new.bat` chỉ nhận tiền tố `feat/ fix/ refactor/ docs/`; `release.bat` chỉ chạy trên nhánh `release` và bắt buộc local phải khớp `origin/release` trước khi tạo tag.
+`deploy.sh` chạy trên VPS, mà VPS đứng yên trên nhánh `release` nên nó luôn có sẵn trong repo — không cần cài ra ngoài.
+
+Các script đều tự chặn thao tác sai: `sync.bat` từ chối chạy khi cây làm việc bẩn và báo rõ phải làm gì nếu push `dev` không fast-forward; `new.bat` chỉ nhận tiền tố `feat/ fix/ refactor/ docs/`; `check.bat` báo luôn phiên bản Go cần cài nếu thiếu; `release.bat` chỉ chạy trên nhánh `release` và bắt buộc local phải khớp `origin/release` trước khi tạo tag.
 
 ## 13. Bảng tra nhanh
 
