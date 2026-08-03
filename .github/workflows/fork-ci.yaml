@@ -1,0 +1,68 @@
+# CI cho nhánh triển khai của fork.
+#
+# ci.yaml của upstream chỉ bắt main/dev nên không phủ được `release`. Các bước ở
+# đây giữ đúng bộ kiểm tra của upstream (build PG + build sqliteonly + vet +
+# test -race + web lint/build) để patch nội bộ không lọt lỗi mà upstream sẽ chặn.
+name: fork ci
+
+on:
+  pull_request:
+    branches: [release]
+  push:
+    branches: [release]
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    services:
+      pg:
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: goclaw_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://postgres:test@localhost:5432/goclaw_test?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - run: go build ./...
+      - run: go build -tags sqliteonly ./...
+      - run: go vet ./...
+      - name: Unit tests
+        run: go test -race -timeout=5m ./...
+      - name: Invariant tests (P0)
+        run: go test -race -timeout=90s -tags integration ./tests/invariants/...
+      - name: Integration tests
+        run: go test -race -timeout=180s -tags integration ./tests/integration/
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: ui/web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm build
