@@ -1,0 +1,18 @@
+# Overlay triển khai cho fork.
+#
+# docker-compose.yml gốc ghim cứng ghcr.io/nextlevelbuilder/goclaw:latest — ảnh
+# đó không có patch nội bộ của fork. File này đổi sang ảnh do workflow
+# `fork release image` dựng từ nhánh `release`.
+#
+# Ghim tag bất biến qua GOCLAW_IMAGE trong .env để quay lui chỉ là đổi một dòng:
+#   GOCLAW_IMAGE=ghcr.io/justintruong29/goclaw:fork-v3.15.0-beta.188-20260803
+#
+# Dùng:
+#   docker compose -f docker-compose.yml -f docker-compose.postgres.yml \
+#                  -f docker-compose.fork.yml pull
+#   docker compose -f docker-compose.yml -f docker-compose.postgres.yml \
+#                  -f docker-compose.fork.yml up -d
+services:
+  goclaw:
+    image: ${GOCLAW_IMAGE:-ghcr.io/justintruong29/goclaw:release}
+    pull_policy: always

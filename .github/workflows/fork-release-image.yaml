@@ -1,0 +1,65 @@
+# Dựng và đẩy ảnh triển khai của fork từ nhánh `release`.
+#
+# Thay cho fork-image.yaml của upstream (đã tắt trên fork này): cái đó dựng từ
+# `dev`, tức bản mirror chưa có patch nội bộ. VPS chỉ pull ảnh ở đây, không build
+# từ source, để thứ đang chạy đúng bằng thứ CI đã kiểm.
+name: fork release image
+
+on:
+  push:
+    branches: [release]
+    tags: ["fork-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: fork-release-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # push nhánh release -> :release (con trỏ động) + :release-<sha> (bất biến)
+      # push tag fork-v*   -> :<tên tag> (bất biến, dùng để ghim trên VPS)
+      - name: Compute tags
+        id: meta
+        run: |
+          IMG=ghcr.io/${{ github.repository }}
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "tags=$IMG:${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+            echo "version=${{ github.ref_name }}"   >> "$GITHUB_OUTPUT"
+          else
+            echo "tags=$IMG:release,$IMG:release-${{ github.sha }}" >> "$GITHUB_OUTPUT"
+            echo "version=release-${{ github.sha }}"                >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          build-args: |
+            ENABLE_EMBEDUI=true
+            ENABLE_PYTHON=true
+            ENABLE_OTEL=false
+            ENABLE_FULL_SKILLS=false
+            VERSION=${{ steps.meta.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
