@@ -51,7 +51,7 @@ Rebase vẫn dùng bình thường — nhưng chỉ trên nhánh riêng chưa ai
 
 1. **Không commit trực tiếp lên `dev`.** `dev` chỉ được cập nhật bằng fast-forward từ `upstream/dev`. Nếu một lệnh push lên `dev` bị từ chối vì không fast-forward, nghĩa là ai đó đã commit sai chỗ — sửa bằng cách chuyển commit đó sang nhánh `fix/*`, không dùng `--force`.
 2. **Không `push --force` / `--force-with-lease` lên `dev`, `release`, `main`.**
-3. **Mọi thay đổi vào `release` đều qua PR, có ít nhất 1 approve và CI xanh.**
+3. **Mọi thay đổi vào `release` đều qua PR và phải có CI xanh.** Không push thẳng. Số approve bắt buộc hiện là 0 (xem nhật ký quyết định) — nhưng review vẫn là mặc định về mặt thói quen, chỉ là máy không chặn.
 4. **Không push tag của upstream (`v*`) lên fork.** Tag upstream chỉ fetch về local để tham chiếu. Fork chỉ tự đẩy tag `fork-v*`.
 
 ---
@@ -133,7 +133,7 @@ git push -u origin fix/ten-mo-ta
 gh pr create --repo justintruong29/goclaw --base release --fill
 ```
 
-PR phải mô tả: sửa gì, vì sao, test thế nào. Cần 1 approve + CI xanh mới merge. Merge bằng **Squash** nếu nhánh nhiều commit lặt vặt, **Merge commit** nếu các commit đã sạch và muốn giữ để PR ngược lên upstream.
+PR phải mô tả **sửa gì, vì sao phải sửa, test thế nào** — phần "vì sao" là phần có giá trị nhất về sau, khi không ai còn nhớ bối cảnh. CI phải xanh mới merge được. Merge bằng **Squash** nếu nhánh nhiều commit lặt vặt, **Merge commit** nếu các commit đã sạch và muốn giữ để PR ngược lên upstream.
 
 ---
 
@@ -320,7 +320,7 @@ Fork kế thừa toàn bộ workflow của upstream. Một số cái phải tắ
 
 | Nhánh / tag | Quy tắc |
 |---|---|
-| `release` | bắt buộc PR, ≥1 approve, CI xanh; cấm force-push; cấm xoá |
+| `release` | bắt buộc PR, CI xanh (`go` + `web`); 0 approve bắt buộc; cấm force-push; cấm xoá |
 | `dev` | cấm force-push; cấm xoá; chỉ người phụ trách sync được push |
 | `main` | cấm force-push; cấm xoá |
 | tag `fork-v*` | cấm xoá, cấm sửa |
@@ -430,5 +430,6 @@ git branch fix/abc && git reset --hard origin/release && git checkout fix/abc
 | 2026-08-03 | Mô hình A: `dev` là bản sao thuần + `release` là nhánh triển khai, sync bằng merge | không force-push nhánh chung; delta riêng liệt kê được bằng một lệnh; PR ngược upstream sạch |
 | 2026-08-03 | Triển khai bằng ảnh GHCR dựng từ `release`, VPS chỉ `docker pull` | thứ chạy đúng bằng thứ CI đã test; quay lui bằng đổi tag ảnh |
 | 2026-08-03 | Tag `fork-v<tag-upstream-dev>-<YYYYMMDD>` | tách khỏi họ tag `v*-beta.NNN` của upstream; nhìn tag biết ngay nền upstream và ngày |
-| 2026-08-03 | Bắt buộc PR + 1 approve + CI xanh vào `release`; PR ngược upstream mọi fix dùng chung | tạo dấu vết review (fork hiện chưa có PR nào) và giữ delta riêng tiến về 0 |
+| 2026-08-03 | Bắt buộc PR + CI xanh vào `release`; PR ngược upstream mọi fix dùng chung | tạo dấu vết review (fork trước đó chưa có PR nào) và giữ delta riêng tiến về 0 |
+| 2026-08-03 | Hạ số approve bắt buộc từ 1 xuống **0**, giữ nguyên yêu cầu CI xanh | team 2 người và GitHub không cho tác giả tự approve PR của mình, nên yêu cầu 1 approve khiến chủ repo bị khoá cứng mỗi khi người kia bận. Đổi lại: máy không còn chặn code chưa ai xem — review trở thành thoả thuận giữa người với nhau, không phải rào chắn kỹ thuật |
 | 2026-08-03 | File riêng của fork luôn mang tên `fork-*` | tránh conflict với upstream ở mỗi lần sync |
