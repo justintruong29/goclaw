@@ -35,7 +35,7 @@ upstream/dev ──fast-forward──▶ origin/dev        (bản sao thuần, C
 |---|---|---|---|
 | `dev` | Bản sao thuần của `upstream/dev` | không ai commit tay | `git push origin upstream/dev:dev` (chỉ fast-forward) |
 | `release` | Nhánh triển khai = `dev` + patch nội bộ | chỉ qua PR + 1 review | `git merge origin/dev` |
-| `feat/*`, `fix/*` | Việc mới, cắt từ `dev` | người tạo nhánh | rebase thoải mái (nhánh riêng) |
+| `feat/*`, `fix/*` | Việc mới, cắt từ `dev` | người tạo nhánh | rebase thoải mái (nhánh riêng); giữ lại chừng nào PR upstream còn mở |
 | `hotfix/*` | Vá gấp production, cắt từ `release` | người tạo nhánh | PR vào `release` |
 | `main` | Bản sao `upstream/main`, không dùng | không ai | để nguyên |
 
@@ -295,6 +295,17 @@ Yêu cầu của upstream cần chú ý khi mở PR (trích `CONTRIBUTING.md` up
 - UI mobile: dùng `h-dvh` không dùng `h-screen`, font input 16px.
 
 PR ngược upstream và việc deploy nội bộ là **hai việc độc lập** — không chờ nhau.
+
+### Cảnh báo: đừng xoá nhánh khi nó còn là head của PR upstream
+
+PR gửi lên upstream trỏ vào nhánh nằm trên fork. Khi merge PR nội bộ vào `release`, nếu tiện tay xoá nhánh thì **PR trên upstream tự động bị đóng**:
+
+```bash
+gh pr merge <n> --merge --delete-branch    # SAI khi nhánh đang có PR upstream
+gh pr merge <n> --merge                    # đúng: giữ nhánh lại
+```
+
+Chỉ xoá nhánh sau khi upstream đã merge hoặc đã từ chối PR. Lỡ xoá rồi thì cứu được: đẩy lại nhánh đúng commit cũ rồi `gh pr reopen <n> --repo nextlevelbuilder/goclaw` — nội dung PR và bình luận vẫn còn nguyên.
 
 ---
 
