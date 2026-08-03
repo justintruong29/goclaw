@@ -2,13 +2,15 @@
 REM hotfix.bat - va loi production gap. Cat tu origin/release vi do la thu
 REM dang chay tren VPS, khong phai dev.
 REM
-REM Dung:  scripts\fork\hotfix.bat socket-timeout
+REM Dung:  hotfix.bat socket-timeout
 setlocal
-cd /d "%~dp0..\.."
+call "%~dp0_common.bat"
+if errorlevel 1 exit /b 1
+cd /d "%REPO%"
 
 if "%~1"=="" (
-  echo Dung: scripts\fork\hotfix.bat ^<mo-ta^>
-  echo   vi du: scripts\fork\hotfix.bat socket-timeout
+  echo Dung: hotfix.bat ^<mo-ta^>
+  echo   vi du: hotfix.bat socket-timeout
   exit /b 1
 )
 
@@ -21,10 +23,10 @@ if errorlevel 1 exit /b 1
 echo.
 echo Da tao nhanh hotfix/%~1 tren nen origin/release.
 echo Sau khi sua xong:
-echo     scripts\fork\check.bat
+echo     check.bat
 echo     git push -u origin hotfix/%~1
 echo     gh pr create --base release --fill
-echo     scripts\fork\release.bat          (tao tag + trien khai)
+echo     release.bat          (tao tag + trien khai)
 echo.
 echo Dung quen dua fix nay len upstream:
 echo     git checkout -b fix/%~1 origin/dev

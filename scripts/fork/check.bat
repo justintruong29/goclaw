@@ -2,10 +2,19 @@
 REM check.bat - bo kiem tra bat buoc truoc khi mo PR.
 REM Giong het bo ma upstream chay trong CI, chay o day de khoi bi CI chan.
 REM
-REM Dung:  scripts\fork\check.bat        (chi Go)
-REM        scripts\fork\check.bat web    (Go + web UI)
+REM Dung:  check.bat        (chi Go)
+REM        check.bat web    (Go + web UI)
 setlocal
-cd /d "%~dp0..\.."
+call "%~dp0_common.bat"
+if errorlevel 1 exit /b 1
+cd /d "%REPO%"
+
+where go >nul 2>&1
+if errorlevel 1 (
+  echo [LOI] Khong tim thay 'go' trong PATH. Cai Go theo phien ban trong go.mod:
+  type go.mod | findstr /b "go "
+  exit /b 1
+)
 
 echo === go build ./... ===
 go build ./...

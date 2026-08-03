@@ -5,7 +5,9 @@ REM   2. day upstream/dev vao origin/dev bang fast-forward (mirror thuan)
 REM   3. merge origin/dev vao release
 REM Khong bao gio force-push. Neu buoc 2 that bai => co commit la tren dev.
 setlocal
-cd /d "%~dp0..\.."
+call "%~dp0_common.bat"
+if errorlevel 1 exit /b 1
+cd /d "%REPO%"
 
 git rev-parse --verify upstream/dev >nul 2>&1
 if errorlevel 1 (
@@ -51,7 +53,7 @@ if errorlevel 1 (
   echo.
   echo [CONFLICT] Sua file bi xung dot, roi:
   echo     git add ^<file^>  ^&^&  git commit
-  echo     scripts\fork\check.bat
+  echo     check.bat
   echo     git push origin release
   echo.
   echo Meo: neu upstream da tu sua cho do roi thi lay ban upstream
@@ -63,5 +65,5 @@ echo.
 echo === Xong. Patch rieng con lai tren release: ===
 git log --oneline origin/dev..HEAD
 echo.
-echo Buoc tiep theo:  scripts\fork\check.bat  roi  git push origin release
+echo Buoc tiep theo:  check.bat  roi  git push origin release
 endlocal

@@ -7,7 +7,9 @@ REM Trung ngay thi tu them hau to .2 .3 ...
 REM Tien to fork- tach han khoi ho tag v*-beta.NNN cua upstream nen khong dung nhau,
 REM va nhin tag la biet ngay ban do dung tren nen upstream nao, ngay nao.
 setlocal enabledelayedexpansion
-cd /d "%~dp0..\.."
+call "%~dp0_common.bat"
+if errorlevel 1 exit /b 1
+cd /d "!REPO!"
 
 for /f %%b in ('git rev-parse --abbrev-ref HEAD') do set BRANCH=%%b
 if not "!BRANCH!"=="release" (
