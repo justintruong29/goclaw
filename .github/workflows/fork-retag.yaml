@@ -1,0 +1,63 @@
+# Gắn tag mới cho một ảnh ĐÃ có trên GHCR — không build lại.
+#
+# Dùng khi: một build đã chạy ổn trên VPS và muốn ghim nó lại (:stable),
+# hoặc muốn kéo :latest lùi về một build cũ sau khi bản mới lỗi.
+#
+# `imagetools create` chỉ tạo tag mới trỏ vào đúng digest cũ, mất vài giây và
+# bảo đảm bit-for-bit giống hệt bản đã kiểm — khác hẳn build lại từ cùng commit
+# (base image, apk/pnpm registry có thể đã đổi → ra digest khác).
+name: fork retag
+
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: "Tag nguồn đã có (vd: build-20260804-1545-a1b2c3d)"
+        required: true
+      target:
+        description: "Tag muốn gắn thêm (vd: stable, latest, fork-v1.0.0)"
+        required: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  retag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Input đi qua env chứ không nội suy thẳng vào shell (tránh chèn lệnh),
+      # và phải khớp bộ ký tự hợp lệ của Docker tag.
+      - name: Retag
+        env:
+          SRC: ${{ inputs.source }}
+          TGT: ${{ inputs.target }}
+          IMG: ghcr.io/${{ github.repository }}
+        run: |
+          set -euo pipefail
+          for t in "$SRC" "$TGT"; do
+            printf '%s' "$t" | grep -qE '^[A-Za-z0-9_][A-Za-z0-9._-]{0,126}$' \
+              || { echo "tag không hợp lệ: $t" >&2; exit 1; }
+          done
+          echo "Nguồn: $IMG:$SRC"
+          docker buildx imagetools inspect "$IMG:$SRC" >/dev/null
+          docker buildx imagetools create -t "$IMG:$TGT" "$IMG:$SRC"
+          DIGEST=$(docker buildx imagetools inspect "$IMG:$TGT" --format '{{.Manifest.Digest}}')
+          echo "Đã gắn: $IMG:$TGT -> $DIGEST"
+          {
+            echo "### Đã gắn tag"
+            echo ""
+            echo '```'
+            echo "$IMG:$SRC  ->  $IMG:$TGT"
+            echo "digest: $DIGEST"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

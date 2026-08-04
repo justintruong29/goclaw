@@ -3,6 +3,16 @@
 # Thay cho fork-image.yaml của upstream (đã tắt trên fork này): cái đó dựng từ
 # `dev`, tức bản mirror chưa có patch nội bộ. VPS chỉ pull ảnh ở đây, không build
 # từ source, để thứ đang chạy đúng bằng thứ CI đã kiểm.
+#
+# Quy ước tag:
+#   :latest                        con trỏ động — VPS trỏ vào đây, mỗi lần push
+#                                  `release` là nó nhảy sang build mới nhất
+#   :build-20260804-1545-a1b2c3d   bất biến — có ngày/giờ build (Asia/Bangkok)
+#                                  + sha7, dùng để rollback và truy vết
+#   :fork-v1.2.0                   bất biến — đặt bằng cách push tag `fork-v*`
+#
+# Đổi tên tag sau khi build (vd trỏ :stable sang một build đã chạy ổn): dùng
+# workflow `fork retag` — nó chỉ gắn tag mới lên đúng digest cũ, không build lại.
 name: fork release image
 
 on:
@@ -33,21 +43,35 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # push nhánh release -> :release (con trỏ động) + :release-<sha> (bất biến)
-      # push tag fork-v*   -> :<tên tag> (bất biến, dùng để ghim trên VPS)
+      # push nhánh release -> :latest (con trỏ động, VPS pull cái này)
+      #                     + :build-<ngày>-<giờ>-<sha7> (bất biến, để rollback/ghim)
+      # push tag fork-v*   -> :<tên tag> (bất biến; KHÔNG đụng :latest)
+      #
+      # Mốc thời gian tính theo Asia/Bangkok (runner chạy UTC) để tag khớp với
+      # giờ người vận hành nhìn thấy. Version nhúng vào binary qua ldflags nên
+      # `goclaw version` in ra đúng ngày build đang chạy trên VPS.
       - name: Compute tags
         id: meta
         run: |
           IMG=ghcr.io/${{ github.repository }}
+          STAMP=$(TZ=Asia/Bangkok date +%Y%m%d-%H%M)
+          SHORT=$(git rev-parse --short=7 HEAD)
           if [ "${{ github.ref_type }}" = "tag" ]; then
-            echo "tags=$IMG:${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
-            echo "version=${{ github.ref_name }}"   >> "$GITHUB_OUTPUT"
+            VERSION=${{ github.ref_name }}
+            TAGS=$IMG:$VERSION
           else
-            echo "tags=$IMG:release,$IMG:release-${{ github.sha }}" >> "$GITHUB_OUTPUT"
-            echo "version=release-${{ github.sha }}"                >> "$GITHUB_OUTPUT"
+            VERSION=build-$STAMP-$SHORT
+            TAGS=$IMG:latest,$IMG:$VERSION
           fi
+          {
+            echo "tags=$TAGS"
+            echo "version=$VERSION"
+            echo "created=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } >> "$GITHUB_OUTPUT"
+          echo "→ $TAGS (version=$VERSION)"
 
       - name: Build and push
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -55,6 +79,13 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
+          # Nhãn OCI: `docker inspect` trên VPS đọc được build nào đang chạy
+          # kể cả khi tag là con trỏ động :latest.
+          labels: |
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ steps.meta.outputs.created }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
           build-args: |
             ENABLE_EMBEDUI=true
             ENABLE_PYTHON=true
@@ -63,3 +94,22 @@ jobs:
             VERSION=${{ steps.meta.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # Tắt attestation: GHCR đỡ sinh manifest phụ, `docker pull` gọn hơn.
+          provenance: false
+
+      # In sẵn lệnh deploy vào trang tóm tắt của run — khỏi phải mò tag/digest.
+      - name: Summary
+        run: |
+          {
+            echo "### Ảnh đã đẩy"
+            echo ""
+            echo '```'
+            echo "tags:   ${{ steps.meta.outputs.tags }}"
+            echo "digest: ${{ steps.build.outputs.digest }}"
+            echo '```'
+            echo ""
+            echo "Deploy trên VPS:"
+            echo '```bash'
+            echo "docker compose pull goclaw && docker compose up -d --no-build goclaw"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
