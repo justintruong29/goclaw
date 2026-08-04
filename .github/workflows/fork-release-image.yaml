@@ -3,13 +3,32 @@
 # Thay cho fork-image.yaml của upstream (đã tắt trên fork này): cái đó dựng từ
 # `dev`, tức bản mirror chưa có patch nội bộ. VPS chỉ pull ảnh ở đây, không build
 # từ source, để thứ đang chạy đúng bằng thứ CI đã kiểm.
+#
+# Quy ước tag:
+#   :build-20260804-1545-a1b2c3d   bất biến — ngày/giờ build (Asia/Bangkok) +
+#                                  sha7. Luôn được đẩy, dùng để rollback/truy vết
+#   :latest                        con trỏ động — VPS trỏ vào đây; chỉ nhảy khi
+#                                  chạy workflow với move_latest = true
+#   :fork-v1.2.0                   bất biến — điền vào input `tag` khi cần đặt tên
+#
+# Đổi tên tag sau khi build (vd trỏ :stable sang một build đã chạy ổn): dùng
+# workflow `fork retag` — nó chỉ gắn tag mới lên đúng digest cũ, không build lại.
 name: fork release image
 
+# Chỉ chạy tay: Actions -> fork release image -> Run workflow -> chọn nhánh
+# (thường là `release`) rồi điền input. Merge vào `release` KHÔNG tự dựng ảnh —
+# gom nhiều PR rồi dựng một lần khi thật sự muốn deploy.
 on:
-  push:
-    branches: [release]
-    tags: ["fork-v*"]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag bất biến (bỏ trống = build-<ngày>-<giờ>-<sha7>)"
+        required: false
+        default: ""
+      move_latest:
+        description: "Kéo :latest sang build này (VPS pull :latest)"
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -33,21 +52,38 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # push nhánh release -> :release (con trỏ động) + :release-<sha> (bất biến)
-      # push tag fork-v*   -> :<tên tag> (bất biến, dùng để ghim trên VPS)
+      # Luôn có một tag bất biến: input `tag` nếu điền, không thì
+      # build-<ngày>-<giờ>-<sha7>. Mốc thời gian theo Asia/Bangkok (runner chạy
+      # UTC) để khớp giờ người vận hành nhìn thấy. Chuỗi này nhúng vào binary qua
+      # ldflags nên `goclaw version` trên VPS in ra đúng bản build nào.
+      # `:latest` chỉ nhảy khi move_latest = true.
       - name: Compute tags
         id: meta
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
         run: |
+          set -euo pipefail
           IMG=ghcr.io/${{ github.repository }}
-          if [ "${{ github.ref_type }}" = "tag" ]; then
-            echo "tags=$IMG:${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
-            echo "version=${{ github.ref_name }}"   >> "$GITHUB_OUTPUT"
+          if [ -n "$INPUT_TAG" ]; then
+            printf '%s' "$INPUT_TAG" | grep -qE '^[A-Za-z0-9_][A-Za-z0-9._-]{0,126}$' \
+              || { echo "tag không hợp lệ: $INPUT_TAG" >&2; exit 1; }
+            VERSION=$INPUT_TAG
           else
-            echo "tags=$IMG:release,$IMG:release-${{ github.sha }}" >> "$GITHUB_OUTPUT"
-            echo "version=release-${{ github.sha }}"                >> "$GITHUB_OUTPUT"
+            VERSION=build-$(TZ=Asia/Bangkok date +%Y%m%d-%H%M)-$(git rev-parse --short=7 HEAD)
           fi
+          TAGS=$IMG:$VERSION
+          if [ "${{ inputs.move_latest }}" = "true" ]; then
+            TAGS=$TAGS,$IMG:latest
+          fi
+          {
+            echo "tags=$TAGS"
+            echo "version=$VERSION"
+            echo "created=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } >> "$GITHUB_OUTPUT"
+          echo "→ $TAGS (version=$VERSION)"
 
       - name: Build and push
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -55,6 +91,13 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
+          # Nhãn OCI: `docker inspect` trên VPS đọc được build nào đang chạy
+          # kể cả khi tag là con trỏ động :latest.
+          labels: |
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ steps.meta.outputs.created }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
           build-args: |
             ENABLE_EMBEDUI=true
             ENABLE_PYTHON=true
@@ -63,3 +106,22 @@ jobs:
             VERSION=${{ steps.meta.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # Tắt attestation: GHCR đỡ sinh manifest phụ, `docker pull` gọn hơn.
+          provenance: false
+
+      # In sẵn lệnh deploy vào trang tóm tắt của run — khỏi phải mò tag/digest.
+      - name: Summary
+        run: |
+          {
+            echo "### Ảnh đã đẩy"
+            echo ""
+            echo '```'
+            echo "tags:   ${{ steps.meta.outputs.tags }}"
+            echo "digest: ${{ steps.build.outputs.digest }}"
+            echo '```'
+            echo ""
+            echo "Deploy trên VPS:"
+            echo '```bash'
+            echo "docker compose pull goclaw && docker compose up -d --no-build goclaw"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
