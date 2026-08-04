@@ -5,11 +5,12 @@
 # test -race + web lint/build) để patch nội bộ không lọt lỗi mà upstream sẽ chặn.
 name: fork ci
 
+# Chỉ chạy tay. Fork này merge PR vào `release` liên tục và phần lớn là patch
+# nhỏ đã kiểm ở máy; chạy full test mỗi lần push chỉ tốn thời gian chờ. Khi cần
+# chắc (trước lúc dựng ảnh để deploy, hoặc sau khi sync upstream) thì:
+#   Actions -> fork ci -> Run workflow -> chọn nhánh
 on:
-  pull_request:
-    branches: [release]
-  push:
-    branches: [release]
+  workflow_dispatch:
 
 permissions:
   contents: read
