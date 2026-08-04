@@ -29,15 +29,39 @@ OVERRIDE=docker-compose.override.yml
 cd "$(dirname "$(readlink -f "$0")")"
 STACK=$(basename "$PWD")
 
-for f in docker-compose.yml docker-compose.postgres.yml; do
-  [ -f "$f" ] || { echo "thiếu $f — đặt script trong thư mục stack" >&2; exit 2; }
-done
+[ -f docker-compose.yml ] || { echo "thiếu docker-compose.yml — đặt script trong thư mục stack" >&2; exit 2; }
 
-# Trước khi override tồn tại chỉ dùng được bộ 2 file; sau khi ghi mới dùng đủ 3.
-DC_BASE=(docker compose -f docker-compose.yml -f docker-compose.postgres.yml)
-DC=("${DC_BASE[@]}" -f "$OVERRIDE")
+# Bộ file compose lấy từ label của container đang chạy, KHÔNG đoán: stack có
+# overlay (browser/redis/sandbox/tailscale/otel) mà chạy thiếu -f thì `up -d`
+# dựng lại container mất cấu hình overlay, im lặng không báo gì.
+FILES=()
+CID=$(docker ps -aq \
+  --filter "label=com.docker.compose.project.working_dir=$PWD" \
+  --filter "label=com.docker.compose.service=$SERVICE" | head -1)
+if [ -n "$CID" ]; then
+  RAW=$(docker inspect "$CID" --format '{{index .Config.Labels "com.docker.compose.project.config_files"}}')
+  IFS=',' read -r -a PARTS <<< "$RAW"
+  for f in "${PARTS[@]}"; do
+    case "$f" in
+      ""|*docker-compose.override.yml) ;;   # override tự thêm lại ở dưới
+      *) if [ -f "$f" ]; then FILES+=("$f"); fi ;;
+    esac
+  done
+fi
+if [ ${#FILES[@]} -eq 0 ]; then
+  echo "!! Không đọc được bộ file compose từ container — dùng mặc định 2 file." >&2
+  FILES=(docker-compose.yml docker-compose.postgres.yml)
+  for f in "${FILES[@]}"; do
+    [ -f "$f" ] || { echo "thiếu $f" >&2; exit 2; }
+  done
+fi
+
+DC_BASE=(docker compose)
+for f in "${FILES[@]}"; do DC_BASE+=(-f "$f"); done
+DC=("${DC_BASE[@]}" -f "$PWD/$OVERRIDE")
 
 echo "==> Stack: $STACK   Tag đích: $IMAGE_REPO:$TAG"
+echo "==> Compose: ${FILES[*]}"
 "${DC_BASE[@]}" ps || { echo "compose không đọc được stack ở đây" >&2; exit 2; }
 
 # ── Ghim ảnh đang chạy để rollback không bị prune mất ────────────────────────
