@@ -17,35 +17,41 @@ Nền tảng: pipeline ảnh ở `.github/workflows/fork-release-image.yaml` + `
 ## Phase 0 — Thu thập (chỉ đọc)
 
 ```bash
-cd ~/projects/<stack>          # vd goclaw2
+cd ~/projects/goclaw          # vd goclaw2
 ```
 
 ```bash
 # tên project + đúng bộ file compose đang dùng (đừng đoán)
-docker inspect <stack>-goclaw-1 --format '{{index .Config.Labels "com.docker.compose.project"}}'
-docker inspect <stack>-goclaw-1 --format '{{index .Config.Labels "com.docker.compose.project.config_files"}}'
+docker inspect goclaw-goclaw-1 --format '{{index .Config.Labels "com.docker.compose.project"}}'
+docker inspect goclaw-goclaw-1 --format '{{index .Config.Labels "com.docker.compose.project.config_files"}}'
 
 # image đang chạy — ĐÂY LÀ ĐƯỜNG LÙI
-docker inspect <stack>-goclaw-1 --format '{{.Config.Image}}'
+docker inspect goclaw-goclaw-1 --format '{{.Config.Image}}'
 
 # volume + port
-docker inspect <stack>-goclaw-1 --format '{{range .Mounts}}{{.Name}} -> {{.Destination}}{{"\n"}}{{end}}'
-docker port <stack>-goclaw-1; docker port <stack>-postgres-1
+docker inspect goclaw-goclaw-1 --format '{{range .Mounts}}{{.Name}} -> {{.Destination}}{{"\n"}}{{end}}'
+docker port goclaw-goclaw-1; docker port goclaw-postgres-1
 
 # bản đang chạy (container cũ còn sống mới lấy được)
-docker exec <stack>-goclaw-1 /app/goclaw version
+docker exec goclaw-goclaw-1 /app/goclaw version
 ```
 
-Đặt biến, thay bộ `-f` bằng đúng kết quả ở trên:
+Đặt biến, thay bộ `-f` bằng đúng kết quả ở trên. **Chưa có `-f docker-compose.override.yml`** — file đó Phase 2 mới tạo; thêm sớm là mọi lệnh compose chết với `no such file or directory`:
 
 ```bash
-DC="docker compose -f docker-compose.yml -f docker-compose.postgres.yml -f docker-compose.override.yml"
+DC="docker compose -f docker-compose.yml -f docker-compose.postgres.yml"
+```
+
+Thử ngay để chắc bộ `-f` đúng, trước khi động vào backup:
+
+```bash
+$DC ps
 ```
 
 Ghi lại số liệu để đối chiếu:
 
 ```bash
-docker exec -i <stack>-postgres-1 psql -U goclaw -d goclaw -c "SELECT 'agents' t,count(*) FROM agents UNION ALL SELECT 'sessions',count(*) FROM sessions UNION ALL SELECT 'vault_docs',count(*) FROM vault_documents UNION ALL SELECT 'skills',count(*) FROM skills;"
+docker exec -i goclaw-postgres-1 psql -U goclaw -d goclaw -c "SELECT 'agents' t,count(*) FROM agents UNION ALL SELECT 'sessions',count(*) FROM sessions UNION ALL SELECT 'vault_docs',count(*) FROM vault_documents UNION ALL SELECT 'skills',count(*) FROM skills;"
 ```
 
 ---
@@ -56,7 +62,7 @@ docker exec -i <stack>-postgres-1 psql -U goclaw -d goclaw -c "SELECT 'agents' t
 
 ```bash
 mkdir -p ~/backups
-docker exec <stack>-postgres-1 pg_dump -U goclaw goclaw > ~/backups/<stack>_$(date +%F-%H%M).sql
+docker exec goclaw-postgres-1 pg_dump -U goclaw goclaw > ~/backups/goclaw_$(date +%F-%H%M).sql
 ls -lh ~/backups/
 ```
 
@@ -67,18 +73,25 @@ docker tag <image-cũ> <image-cũ-không-tag>:pre-image-switch
 docker images | grep goclaw
 ```
 
-Stack build tại chỗ thì image cũ tên `<project>-goclaw:latest`. Stack pull sẵn thì là `ghcr.io/nextlevelbuilder/goclaw:latest`.
+Stack build tại chỗ thì image cũ tên `goclaw-goclaw:latest`. Stack pull sẵn thì là `ghcr.io/nextlevelbuilder/goclaw:latest`.
 
-**Lớp 3 — bản sao nguội volume Postgres.** Dừng DB vài giây:
+**Lớp 3 — bản sao nguội volume Postgres.** Dừng DB vài giây. Chạy **từng lệnh một** và xác nhận `$DC stop` thành công trước khi `tar` — Postgres còn chạy thì tar ra bản sao nóng, có thể rách giữa chừng và vô dụng lúc cần:
 
 ```bash
 $DC stop
-docker run --rm -v <project>_postgres-data:/v -v ~/backups:/b alpine tar czf /b/<stack>-pgdata-$(date +%F).tgz -C /v .
+```
+```bash
+docker ps --format '{{.Names}}\t{{.Status}}'      # phải KHÔNG còn container của stack
+```
+```bash
+docker run --rm -v goclaw_postgres-data:/v -v ~/backups:/b alpine tar czf /b/goclaw-pgdata-$(date +%F).tgz -C /v .
+```
+```bash
 $DC start
 ```
 
 ```bash
-cp .env ~/backups/<stack>.env.bak
+cp .env ~/backups/goclaw.env.bak
 ```
 
 ---
@@ -103,11 +116,17 @@ Ghim tag có ngày cho lần chuyển đầu, không dùng `:latest` — để b
 cat -A docker-compose.override.yml     # đúng 3 dòng, mỗi dòng kết bằng $, không dòng trống
 ```
 
+Giờ mới thêm override vào `$DC` — từ đây mọi lệnh compose ở thư mục này phải có đủ cờ:
+
+```bash
+DC="docker compose -f docker-compose.yml -f docker-compose.postgres.yml -f docker-compose.override.yml"
+```
+
 Kiểm compose đọc đúng — **so cả 3: image mới, port cũ, volume cũ**:
 
 ```bash
 $DC config | grep -E "image:|published"
-$DC config | grep "name: <project>_"
+$DC config | grep "name: goclaw_"
 ```
 
 Chạy:
@@ -115,7 +134,7 @@ Chạy:
 ```bash
 $DC pull goclaw
 $DC up -d --no-build goclaw
-docker logs <stack>-goclaw-1 --tail 80
+docker logs goclaw-goclaw-1 --tail 80
 ```
 
 > Không chạy `$DC up -d` trống (đụng cả service postgres). Không bao giờ `down -v`.
@@ -125,9 +144,9 @@ docker logs <stack>-goclaw-1 --tail 80
 ## Phase 3 — Nghiệm thu
 
 ```bash
-docker logs <stack>-goclaw-1 2>&1 | head -40      # phần "Running database upgrade..."
+docker logs goclaw-goclaw-1 2>&1 | head -40      # phần "Running database upgrade..."
 curl -fsS http://127.0.0.1:<port>/health && echo
-docker exec <stack>-goclaw-1 /app/goclaw version
+docker exec goclaw-goclaw-1 /app/goclaw version
 ```
 
 Trong log phải thấy migration kết thúc gọn và `schema check passed current=N required=N`:
@@ -141,7 +160,7 @@ Upgrade complete.
 Số liệu so với Phase 0 (hoặc so với dump):
 
 ```bash
-docker exec -i <stack>-postgres-1 psql -U goclaw -d goclaw -c "SELECT 'agents' t,count(*) FROM agents UNION ALL SELECT 'sessions',count(*) FROM sessions UNION ALL SELECT 'vault_docs',count(*) FROM vault_documents UNION ALL SELECT 'skills',count(*) FROM skills;"
+docker exec -i goclaw-postgres-1 psql -U goclaw -d goclaw -c "SELECT 'agents' t,count(*) FROM agents UNION ALL SELECT 'sessions',count(*) FROM sessions UNION ALL SELECT 'vault_docs',count(*) FROM vault_documents UNION ALL SELECT 'skills',count(*) FROM skills;"
 ```
 ```bash
 awk '$1=="COPY"&&$2=="public.vault_documents"{f=1;next} f&&$0=="\\."{exit} f{c++} END{print c+0}' ~/backups/<file>.sql
@@ -181,8 +200,8 @@ $DC up -d --no-build goclaw
 
 ```bash
 $DC stop goclaw
-docker exec -i <stack>-postgres-1 psql -U goclaw -d postgres -c "DROP DATABASE goclaw; CREATE DATABASE goclaw OWNER goclaw;"
-docker exec -i <stack>-postgres-1 psql -U goclaw -d goclaw < ~/backups/<stack>_<ngày>.sql
+docker exec -i goclaw-postgres-1 psql -U goclaw -d postgres -c "DROP DATABASE goclaw; CREATE DATABASE goclaw OWNER goclaw;"
+docker exec -i goclaw-postgres-1 psql -U goclaw -d goclaw < ~/backups/goclaw_<ngày>.sql
 # sửa dòng image trong override về <image>:pre-image-switch
 $DC up -d --no-build goclaw
 ```
@@ -191,7 +210,7 @@ $DC up -d --no-build goclaw
 
 ```bash
 $DC down                      # KHÔNG có -v
-docker run --rm -v <project>_postgres-data:/v -v ~/backups:/b alpine sh -c 'rm -rf /v/* && tar xzf /b/<stack>-pgdata-<ngày>.tgz -C /v'
+docker run --rm -v goclaw_postgres-data:/v -v ~/backups:/b alpine sh -c 'rm -rf /v/* && tar xzf /b/goclaw-pgdata-<ngày>.tgz -C /v'
 $DC up -d
 ```
 
@@ -202,9 +221,9 @@ $DC up -d
 ## Phase 5 — Sau khi ổn
 
 1. Đổi override sang `:latest` nếu muốn deploy nhanh (`pull && up -d`), hoặc giữ tag ghim nếu ưu tiên an toàn.
-2. Ghi digest mỗi lần deploy: `docker inspect <stack>-goclaw-1 --format '{{.Image}}' >> deploy.log`
+2. Ghi digest mỗi lần deploy: `docker inspect goclaw-goclaw-1 --format '{{.Image}}' >> deploy.log`
 3. Deploy lần sau: Actions → `fork release image` (move_latest ✔) → trên VPS `$DC pull goclaw && $DC up -d --no-build goclaw`.
-4. Chỉ khi chạy ổn nhiều ngày mới tính dọn source ra khỏi thư mục deploy. Đổi thư mục = đổi project name = đổi tên volume → phải set `COMPOSE_PROJECT_NAME=<project>` trong `.env`, quên là DB trông như rỗng.
+4. Chỉ khi chạy ổn nhiều ngày mới tính dọn source ra khỏi thư mục deploy. Đổi thư mục = đổi project name = đổi tên volume → phải set `COMPOSE_PROJECT_NAME=goclaw` trong `.env`, quên là DB trông như rỗng.
 
 ---
 
