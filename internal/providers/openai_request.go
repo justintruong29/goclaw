@@ -63,12 +63,14 @@ func (p *OpenAIProvider) buildRequestBody(model string, req ChatRequest, stream 
 		// kimi-k2-turbo-preview), assistant tool-call messages MUST carry
 		// reasoning_content even if empty — otherwise upstream returns 400 "thinking
 		// is enabled but reasoning_content is missing in assistant tool call message".
+		//
+		// DeepSeek V4 behaves the same way (see openAIRequiresReasoningPassback).
 		if m.Role == "assistant" && openAIWireAssistantReasoningContent(model) {
 			switch {
 			case m.Thinking != "":
 				msg["reasoning_content"] = m.Thinking
-			case p.providerType == "kimi_coding":
-				// Send empty string rather than omit the field — satisfies Kimi's
+			case p.providerType == "kimi_coding" || openAIRequiresReasoningPassback(model):
+				// Send empty string rather than omit the field — satisfies the
 				// "must be present" check without inventing reasoning content.
 				msg["reasoning_content"] = ""
 			}
@@ -455,4 +457,26 @@ func openAIWireAssistantReasoningContent(model string) bool {
 		return true
 	}
 	return false
+}
+
+// openAIRequiresReasoningPassback is true for models whose server-side thinking
+// is always on and which reject assistant history that omits reasoning_content
+// entirely — the field must be present even when the model returned no
+// reasoning for that turn.
+//
+// DeepSeek V4 (deepseek-v4-flash / deepseek-v4-pro on api.deepseek.com):
+// omitting the field on the assistant tool-call message returns HTTP 400
+// "The `reasoning_content` in the thinking mode must be passed back to the
+// API.", aborting the run at iteration 2.
+//
+// The failure is intermittent, not universal: it only bites on turns where the
+// model returned no reasoning, so Thinking is empty and the field gets dropped.
+// Measured on tenant alpha 2026-08-05 — 4 of 13 tool-using runs failed (~31%)
+// across agents ho-tro and ho-tro-cron. Confirmed against the live API the same
+// day: identical history 400s without the key and succeeds with it set to "".
+//
+// Scoped to v4 on purpose: deepseek-chat and deepseek-reasoner do not impose
+// this and must keep their current behaviour.
+func openAIRequiresReasoningPassback(model string) bool {
+	return strings.Contains(strings.ToLower(model), "deepseek-v4")
 }
