@@ -201,3 +201,49 @@ func TestNonKimi_ReasoningContentNotAddedWhenEmpty(t *testing.T) {
 		t.Error("non-kimi providers must not inject empty reasoning_content; key should be absent")
 	}
 }
+
+// TestDeepSeekV4_ReasoningContentAlwaysPresentOnAssistant covers the DeepSeek V4
+// counterpart of the Kimi rule: thinking is always on server-side, so an
+// assistant message that omits reasoning_content entirely is rejected with
+// HTTP 400 "The `reasoning_content` in the thinking mode must be passed back to
+// the API." — which aborts the run at iteration 2, i.e. every tool-using turn
+// where the model happened to return no reasoning.
+func TestDeepSeekV4_ReasoningContentAlwaysPresentOnAssistant(t *testing.T) {
+	p := NewOpenAIProvider("deepseek", "sk", "https://api.deepseek.com/v1", "deepseek-v4-flash")
+
+	body := p.buildRequestBody("deepseek-v4-flash", ChatRequest{
+		Messages: []Message{
+			{Role: "user", Content: "scheduler còn sống không?"},
+			{Role: "assistant", ToolCalls: []ToolCall{{ID: "call_1", Name: "bo_get_schedule_status_health", Arguments: map[string]any{}}}},
+			{Role: "tool", Content: "...", ToolCallID: "call_1"},
+		},
+	}, true)
+
+	msgs := body["messages"].([]map[string]any)
+	rc, present := msgs[1]["reasoning_content"]
+	if !present {
+		t.Fatalf("deepseek-v4 assistant tool-call message must include reasoning_content key; got %v", msgs[1])
+	}
+	if rc != "" {
+		t.Errorf("reasoning_content = %q, want empty string when Thinking unset", rc)
+	}
+}
+
+// TestDeepSeekV4_ReasoningContentPreservedWhenSet ensures the empty-string
+// fallback never clobbers reasoning the model actually returned.
+func TestDeepSeekV4_ReasoningContentPreservedWhenSet(t *testing.T) {
+	p := NewOpenAIProvider("deepseek", "sk", "https://api.deepseek.com/v1", "deepseek-v4-flash")
+
+	body := p.buildRequestBody("deepseek-v4-flash", ChatRequest{
+		Messages: []Message{
+			{Role: "user", Content: "hi"},
+			{Role: "assistant", Content: "hello", Thinking: "user greeted me"},
+			{Role: "user", Content: "more"},
+		},
+	}, true)
+
+	msgs := body["messages"].([]map[string]any)
+	if got := msgs[1]["reasoning_content"]; got != "user greeted me" {
+		t.Errorf("reasoning_content = %q, want %q", got, "user greeted me")
+	}
+}
