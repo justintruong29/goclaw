@@ -56,10 +56,6 @@ func (t *VaultSearchTool) Parameters() map[string]any {
 				"type":        "string",
 				"description": "Natural language search query",
 			},
-			"scope": map[string]any{
-				"type":        "string",
-				"description": "Scope filter: personal, team, or shared (default: all)",
-			},
 			"types": map[string]any{
 				"type":        "string",
 				"description": "Comma-separated doc types: context, memory, note, skill, episodic, kg (default: all sources)",
@@ -103,9 +99,14 @@ func (t *VaultSearchTool) Execute(ctx context.Context, args map[string]any) *Res
 		}
 	}
 
-	if scope, ok := args["scope"].(string); ok && scope != "" {
-		opts.Scope = scope
-	}
+	// No scope filter here on purpose. store.VaultSearchOptions.Scope is an exact
+	// match on vault_documents.scope with no "OR IS NULL" escape hatch, so a value
+	// the model guessed — "team" when the knowledge lives in tenant-wide "shared"
+	// docs — silently drops every row and reads back as an empty vault. Isolation
+	// is enforced by the RunContext-derived team/chat/agent filters above, which
+	// tool args cannot reach; scope added no protection, only a way to lose rows.
+	// The HTTP /vault/search endpoint still sets Scope for the UI's scope picker,
+	// where the exact match is what the user asked for.
 	if types, ok := args["types"].(string); ok && types != "" {
 		for t := range strings.SplitSeq(types, ",") {
 			opts.DocTypes = append(opts.DocTypes, strings.TrimSpace(t))

@@ -17,9 +17,12 @@ import (
 type vsFakeVault struct {
 	store.VaultStore
 	res []store.VaultSearchResult
+
+	gotOpts store.VaultSearchOptions // captured for assertions on what the tool sent down
 }
 
 func (f *vsFakeVault) Search(ctx context.Context, opts store.VaultSearchOptions) ([]store.VaultSearchResult, error) {
+	f.gotOpts = opts
 	return f.res, nil
 }
 
@@ -39,6 +42,49 @@ type vsFakeKG struct {
 
 func (f *vsFakeKG) SearchEntities(ctx context.Context, agentID, userID, query string, limit int) ([]store.Entity, error) {
 	return f.res, nil
+}
+
+// TestVaultSearch_ScopeArgIsIgnored pins the fix for the empty-result bug: the
+// model used to fill scope="team" from a team-flavoured system prompt, which
+// exact-matched vault_documents.scope and dropped every tenant-wide "shared"
+// doc, so the tool answered "No results found" on a populated vault. The arg is
+// now absent from the schema; a model that sends it anyway must be ignored
+// rather than have the search narrowed.
+func TestVaultSearch_ScopeArgIsIgnored(t *testing.T) {
+	vaultFake := &vsFakeVault{res: []store.VaultSearchResult{
+		{Document: store.VaultDocument{ID: "vault-id", Title: "VDoc", Path: "v.md", DocType: "note"}, Score: 0.9, Source: "vault"},
+	}}
+
+	tool := NewVaultSearchTool()
+	tool.SetSearchService(vault.NewVaultSearchService(vaultFake, nil, nil))
+
+	ctx := store.WithAgentID(store.WithTenantID(context.Background(), uuid.New()), uuid.New())
+
+	res := tool.Execute(ctx, map[string]any{"query": "something", "scope": "team"})
+	if res.IsError {
+		t.Fatalf("unexpected error: %s", res.ForLLM)
+	}
+	if got := vaultFake.gotOpts.Scope; got != "" {
+		t.Errorf("scope arg must not reach the store, got %q", got)
+	}
+	if !strings.Contains(res.ForLLM, "doc_id: vault-id") {
+		t.Errorf("result dropped despite scope arg: %s", res.ForLLM)
+	}
+}
+
+// TestVaultSearch_ParametersOmitScope guards the schema itself — leaving the
+// param declared would keep inviting the model to send it.
+func TestVaultSearch_ParametersOmitScope(t *testing.T) {
+	props, ok := NewVaultSearchTool().Parameters()["properties"].(map[string]any)
+	if !ok {
+		t.Fatal("Parameters()[properties] is not a map")
+	}
+	if _, exists := props["scope"]; exists {
+		t.Error("scope must not be advertised in the tool schema")
+	}
+	if _, exists := props["query"]; !exists {
+		t.Error("query went missing from the tool schema")
+	}
 }
 
 func TestVaultSearch_OutputIncludesToolHint(t *testing.T) {
