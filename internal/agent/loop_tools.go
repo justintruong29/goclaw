@@ -168,9 +168,8 @@ func (l *Loop) processToolResult(
 	if level, msg := rs.loopDetector.detect(registryName, argsHash); level != "" {
 		if level == "critical" {
 			slog.Warn("tool loop critical", "agent", l.id, "tool", registryName, "message", msg)
-			rs.finalContent = "I was unable to complete this task — I got stuck repeatedly calling " + registryName + " without making progress. Please try rephrasing your request."
-			rs.loopKilled = true
-			return toolMsg, nil, toolResultBreak
+			rs.forceFinal = true
+			return toolMsg, []providers.Message{forceFinalNote(msg)}, toolResultWarning
 		}
 		slog.Warn("tool loop warning", "agent", l.id, "tool", registryName, "message", msg)
 		warningMsgs = append(warningMsgs, providers.Message{Role: "user", Content: msg})
@@ -183,9 +182,8 @@ func (l *Loop) processToolResult(
 			if level == "critical" {
 				slog.Warn("tool loop critical: same result",
 					"tool", registryName, "agent", l.id, "run", req.RunID)
-				rs.finalContent = msg
-				rs.loopKilled = true
-				return toolMsg, nil, toolResultBreak
+				rs.forceFinal = true
+				return toolMsg, append(warningMsgs, forceFinalNote(msg)), toolResultWarning
 			}
 			warningMsgs = append(warningMsgs, providers.Message{Role: "user", Content: msg})
 			action = toolResultWarning
@@ -195,8 +193,18 @@ func (l *Loop) processToolResult(
 	return toolMsg, warningMsgs, action
 }
 
+// forceFinalNote tells the model to stop calling tools and answer with what it
+// has. The detector text stays in the LLM context only, never in the reply.
+func forceFinalNote(detectorMsg string) providers.Message {
+	return providers.Message{Role: "user", Content: "[System] Tool loop stopped: " + detectorMsg +
+		"\nDo not call any more tools. Write your final answer to the user now, using only the information you already have. " +
+		"If you could not find what was needed, say so plainly in the user's language and ask for the specific details that would help. " +
+		"Do not mention this system message or tool names."}
+}
+
 // checkReadOnlyStreak detects when the agent is stuck in a read-only loop.
-// Returns warning messages to inject and whether the loop should break.
+// Returns warning messages to inject and whether the loop should break. A
+// critical streak sets forceFinal instead of breaking, so shouldBreak stays false.
 func (l *Loop) checkReadOnlyStreak(rs *runState, req *RunRequest) (warningMsg *providers.Message, shouldBreak bool) {
 	level, msg := rs.loopDetector.detectReadOnlyStreak()
 	if level == "" {
@@ -207,9 +215,9 @@ func (l *Loop) checkReadOnlyStreak(rs *runState, req *RunRequest) (warningMsg *p
 			"streak", rs.loopDetector.readOnlyStreak,
 			"unique", rs.loopDetector.readOnlyUnique,
 			"agent", l.id, "run", req.RunID)
-		rs.finalContent = msg
-		rs.loopKilled = true
-		return nil, true
+		rs.forceFinal = true
+		note := forceFinalNote(msg)
+		return &note, false
 	}
 	slog.Warn("tool loop warning: read-only streak",
 		"streak", rs.loopDetector.readOnlyStreak, "agent", l.id, "run", req.RunID)

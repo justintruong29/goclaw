@@ -275,6 +275,10 @@ const (
 	// output and no deliverable media, replacing the old meaningless "...".
 	MsgEmptyReplyFallback = "chat.empty_reply_fallback"
 
+	// Loop guard fallback (user-facing) — shown when the loop detector stopped
+	// the run and the model gave no final answer (e.g. tripped on the last iteration).
+	MsgLoopStoppedFallback = "chat.loop_stopped_fallback"
+
 	// Tool progress announcements (user-facing)
 	MsgToolAnnouncementSingle = "progress.tool_announcement.single" // "I'll use %s to handle the next step."
 	MsgToolAnnouncementMulti  = "progress.tool_announcement.multi"  // "I'll use %s to handle the next step."

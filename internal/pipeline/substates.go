@@ -68,6 +68,7 @@ type ToolState struct {
 	MediaResults   []MediaResult // media files produced by tools
 	Deliverables   []string      // tool output content for team task results
 	LoopKilled     bool          // set when loop detector triggers critical
+	ForceFinal     bool          // loop detector tripped: next LLM call gets no tools
 }
 
 // ObserveState: owned by ObserveStage.

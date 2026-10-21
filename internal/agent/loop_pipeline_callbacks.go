@@ -240,6 +240,11 @@ func (l *Loop) makeBuildFilteredTools(req *RunRequest) func(state *pipeline.RunS
 			maxIter = req.MaxIterations
 		}
 
+		// Loop guard tripped: withhold every tool so the model must answer.
+		if state.Tool.ForceFinal {
+			return nil, nil
+		}
+
 		// Cache hit: reuse tool defs from first call for non-final iterations.
 		if cacheValid && state.Iteration != maxIter {
 			return cachedToolDefs, nil

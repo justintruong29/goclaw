@@ -144,6 +144,14 @@ func (s *ThinkStage) Execute(ctx context.Context, state *RunState) error {
 		return fmt.Errorf("llm response truncated before content")
 	}
 
+	// Tools were withheld after a loop-guard trip; a model that still emits tool
+	// calls gets them dropped so its text (or the fallback) becomes the answer.
+	if state.Tool.ForceFinal && len(resp.ToolCalls) > 0 {
+		slog.Warn("pipeline.force_final_dropped_tool_calls", "run_id", state.RunID, "count", len(resp.ToolCalls))
+		resp.ToolCalls = nil
+		resp.RawAssistantContent = nil
+	}
+
 	state.Think.LastResponse = resp
 
 	// 6. Handle truncation: retry when tool call args are truncated or malformed.

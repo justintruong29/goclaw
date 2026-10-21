@@ -764,6 +764,10 @@ type runState struct {
 	// Propagated to RunResult.LoopKilled so the consumer can auto-fail team tasks.
 	loopKilled bool
 
+	// Set instead of loopKilled when a detector trips: the next LLM call gets no
+	// tools so the agent writes the final answer itself (no raw detector text).
+	forceFinal bool
+
 	// Truncation retry counter — caps consecutive truncation/parse-error retries
 	// to prevent burning through all iterations when max_tokens is too low.
 	truncationRetries int
