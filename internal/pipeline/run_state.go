@@ -81,7 +81,7 @@ func (rs *RunState) BuildResult() *RunResult {
 		LastUsage:      rs.Think.LastUsage,
 		Iterations:     rs.Iteration,
 		ToolCalls:      rs.Tool.TotalToolCalls,
-		LoopKilled:     rs.Tool.LoopKilled,
+		LoopKilled:     rs.Tool.LoopKilled || rs.Tool.ForceFinal,
 		AsyncToolCalls: rs.Tool.AsyncToolCalls,
 		MediaResults:   rs.Tool.MediaResults,
 		Deliverables:   rs.Tool.Deliverables,

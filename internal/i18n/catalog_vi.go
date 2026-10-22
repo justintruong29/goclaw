@@ -234,6 +234,7 @@ func init() {
 		MsgSkillNudge70Pct:      "[System] Bạn đã dùng 70% ngân sách vòng lặp. Cân nhắc xem các mẫu trong phiên này có nên lưu thành kỹ năng không.",
 		MsgSkillNudge90Pct:      "[System] Bạn đã dùng 90% ngân sách vòng lặp. Nếu phiên này có quy trình tái sử dụng, hãy cân nhắc lưu thành kỹ năng trước khi hoàn thành.",
 		MsgEmptyReplyFallback:   "⚠️ Agent không thể tạo phản hồi. Lưu ý: một số thao tác công cụ có thể đã được thực hiện — vui lòng kiểm tra trước khi thử lại",
+		MsgLoopStoppedFallback:  "Mình chưa tìm được đủ thông tin để trả lời câu này. Bạn gửi thêm chi tiết (ví dụ màn hình, mã ID hoặc thời điểm cụ thể) để mình kiểm tra lại nhé.",
 
 		MsgInvalidRole: "vai trò không hợp lệ: giá trị cho phép là owner, admin, operator, member, viewer",
 

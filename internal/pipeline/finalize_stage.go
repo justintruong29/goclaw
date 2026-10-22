@@ -52,7 +52,11 @@ func (s *FinalizeStage) Execute(ctx context.Context, state *RunState) error {
 		len(state.Input.ForwardMedia) > 0 ||
 		state.Input.ContentSuffix != ""
 	if state.Observe.FinalContent == "" && !isSilent && !hasDeliverableOutput {
-		state.Observe.FinalContent = i18n.T(store.LocaleFromContext(ctx), i18n.MsgEmptyReplyFallback)
+		key := i18n.MsgEmptyReplyFallback
+		if state.Tool.ForceFinal {
+			key = i18n.MsgLoopStoppedFallback
+		}
+		state.Observe.FinalContent = i18n.T(store.LocaleFromContext(ctx), key)
 	}
 
 	// 2c. Append content suffix (e.g. image markdown for WS) with dedup.

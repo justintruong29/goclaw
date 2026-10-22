@@ -246,6 +246,7 @@ func (l *Loop) makeProcessToolResult(req *RunRequest, bridgeRS *runState) func(c
 func (l *Loop) makeCheckReadOnly(req *RunRequest, bridgeRS *runState) func(state *pipeline.RunState) (*providers.Message, bool) {
 	return func(state *pipeline.RunState) (*providers.Message, bool) {
 		warnMsg, shouldBreak := l.checkReadOnlyStreak(bridgeRS, req)
+		state.Tool.ForceFinal = bridgeRS.forceFinal
 		if shouldBreak {
 			state.Tool.LoopKilled = bridgeRS.loopKilled
 			state.Observe.FinalContent = bridgeRS.finalContent
@@ -257,6 +258,7 @@ func (l *Loop) makeCheckReadOnly(req *RunRequest, bridgeRS *runState) func(state
 // syncBridgeToState copies side effects from bridgeRS to pipeline RunState.
 func syncBridgeToState(bridgeRS *runState, state *pipeline.RunState, action toolResultAction) {
 	state.Tool.LoopKilled = bridgeRS.loopKilled
+	state.Tool.ForceFinal = bridgeRS.forceFinal
 	state.Tool.AsyncToolCalls = bridgeRS.asyncToolCalls
 	state.Tool.Deliverables = bridgeRS.deliverables
 	state.Evolution.BootstrapWrite = bridgeRS.bootstrapWriteDetected

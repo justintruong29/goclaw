@@ -234,6 +234,7 @@ func init() {
 		MsgSkillNudge70Pct:      "[System] 您已使用 70% 的迭代预算。请考虑本次会话中的模式是否值得保存为技能。",
 		MsgSkillNudge90Pct:      "[System] 您已使用 90% 的迭代预算。如果本次会话涉及可重用的模式，请考虑在完成前将其保存为技能。",
 		MsgEmptyReplyFallback:   "⚠️ 代理无法生成响应。注意：部分工具操作可能已经执行 — 请先确认后再重试",
+		MsgLoopStoppedFallback:  "我暂时没有找到足够的信息来回答这个问题。请补充更多细节（例如具体页面、ID 或时间），我会再查一次。",
 
 		MsgInvalidRole: "无效角色：允许的值为 owner、admin、operator、member、viewer",
 

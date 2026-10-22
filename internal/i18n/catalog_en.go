@@ -234,6 +234,7 @@ func init() {
 		MsgSkillNudge70Pct:      "[System] You are at 70% of your iteration budget. Consider whether any patterns from this session would make a good skill.",
 		MsgSkillNudge90Pct:      "[System] You are at 90% of your iteration budget. If this session involved reusable patterns, consider saving them as a skill before completing.",
 		MsgEmptyReplyFallback:   "⚠️ Agent couldn't generate a response. Note: some tool actions may have already been executed — please verify before retrying",
+		MsgLoopStoppedFallback:  "I couldn't find enough information to answer this yet. Please send more details (e.g. the exact screen, ID or time) and I'll check again.",
 
 		MsgInvalidRole: "invalid role: allowed values are owner, admin, operator, member, viewer",
 
